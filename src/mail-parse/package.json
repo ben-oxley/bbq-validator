@@ -1,0 +1,10 @@
+{
+    "name": "lambda",
+    "version": "1.0.0",
+    "type": "commonjs",
+    "main": "mail-parse.js",
+    "author": "",
+    "dependencies": {
+      "mailparser": "^3.0.0"
+    }
+  }
