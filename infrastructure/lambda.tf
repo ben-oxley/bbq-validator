@@ -63,8 +63,84 @@ EOF
             "logs:PutLogEvents",
           ],
           "Resource" : "*"
+        },
+        {
+          "Sid" : "LambdaS3",
+          "Effect" : "Allow",
+          "Action" : [
+            "s3:GetObject",
+            "s3:PutObject"
+          ],
+          "Resource" : "*"
+        },
+        {
+            "Effect": "Allow",
+            "Action": [
+                "rekognition:*"
+            ],
+            "Resource": "*"
+        },
+        {
+            "Sid": "PassRole",
+            "Effect": "Allow",
+            "Action": "iam:PassRole",
+            "Resource": "*"
         }
       ]
     })
   }
 }
+
+resource "aws_s3_bucket_notification" "my-trigger" {
+    bucket = aws_s3_bucket.inbox_s3.bucket
+
+    lambda_function {
+        lambda_function_arn = "${aws_lambda_function.lambda_hello_world.arn}"
+        events              = ["s3:ObjectCreated:*"]
+    }
+}
+
+resource "aws_lambda_permission" "test" {
+  statement_id  = "AllowS3Invoke"
+  action        = "lambda:InvokeFunction"
+  function_name = "${aws_lambda_function.lambda_hello_world.arn}"
+  principal = "s3.amazonaws.com"
+  source_arn = aws_s3_bucket.inbox_s3.arn
+}
+
+resource "aws_s3_bucket" "images_s3" {
+  bucket = "aws-bbq-images-dev-ireland"
+ 
+  tags = {
+    Name        = "AWS bbq images"
+    Environment = "dev"
+  }
+}
+
+
+resource "aws_s3_bucket_policy" "images_s3_rekognition" {
+  bucket = aws_s3_bucket.images_s3.id
+
+  policy = <<POLICY
+{
+  "Version":"2012-10-17",
+  "Statement":[
+    {
+      "Sid":"AllowRekognitionGet",
+      "Effect":"Allow",
+      "Principal":{
+        "Service":"lambda.amazonaws.com"
+      },
+      "Action":"s3:GetObject",
+      "Resource":"arn:aws:s3:::${aws_s3_bucket.images_s3.bucket}/*",
+      "Condition":{
+        "StringEquals":{
+          "AWS:SourceAccount":"536507824931"
+        }
+      }
+    }
+  ]
+}
+POLICY
+}
+
