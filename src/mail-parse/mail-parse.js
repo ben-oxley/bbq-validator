@@ -15,7 +15,7 @@ module.exports.handler = async function (event, context, callback) {
     };
     const data = await s3.getObject(req).promise();
 
-    console.log("Raw email:\n" + data.Body);
+    //console.log("Raw email:\n" + data.Body);
 
     // Custom email processing goes here
     const parsed = await simpleParser(data.Body);
@@ -23,9 +23,9 @@ module.exports.handler = async function (event, context, callback) {
     console.log("headers:", parsed.headers);
     console.log("date:", parsed.date);
     console.log("subject:", parsed.subject);
-    console.log("body:", parsed.text);
+    //console.log("body:", parsed.text);
     console.log("from:", parsed.from.text);
-    console.log("attachments:", parsed.attachments);
+    //console.log("attachments:", parsed.attachments);
     var params = {
         Body: parsed.attachments[0].content, 
         Bucket: "aws-bbq-images-dev-ireland", 
