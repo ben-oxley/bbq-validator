@@ -74,6 +74,14 @@ EOF
           "Resource" : "*"
         },
         {
+          "Sid": "LambdaDynamo",
+          "Effect": "Allow",
+          "Action": [
+            "dynamodb:PutItem"
+          ],
+          "Resource" : "*"
+        },
+        {
             "Effect": "Allow",
             "Action": [
                 "rekognition:*"
@@ -107,6 +115,8 @@ resource "aws_lambda_permission" "test" {
   principal = "s3.amazonaws.com"
   source_arn = aws_s3_bucket.inbox_s3.arn
 }
+
+
 
 resource "aws_s3_bucket" "images_s3" {
   bucket = "aws-bbq-images-dev-ireland"

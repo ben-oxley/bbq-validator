@@ -1,9 +1,10 @@
 'use strict';
 var AWS = require('aws-sdk');
 var s3 = new AWS.S3();
+var ddb = new AWS.DynamoDB({apiVersion: '2012-08-10'});
 var bucketName = process.env.BUCKET;
 var simpleParser = require('mailparser').simpleParser;
-module.exports.handler = function (event, context, callback) {
+module.exports.handler = async function (event, context, callback) {
     console.log('Event: ', JSON.stringify(event));
     var s3Object = event.Records[0].s3.object;
     var s3Bucket = event.Records[0].s3.bucket;
@@ -12,75 +13,94 @@ module.exports.handler = function (event, context, callback) {
         Bucket: s3Bucket.name,
         Key: s3Object.key
     };
-    s3.getObject(req, function (err, data) {
-        if (err) {
-            console.log(err, err.stack);
-            callback(err);
-        } else {
-            console.log("Raw email:\n" + data.Body);
-// Custom email processing goes here
-            simpleParser(data.Body, (err, parsed) => {
-                if (err) {
-                    console.log(err, err.stack);
-                    callback(err);
-                } else {
-                    console.log("headers:", parsed.headers);
-                    console.log("date:", parsed.date);
-                    console.log("subject:", parsed.subject);
-                    console.log("body:", parsed.text);
-                    console.log("from:", parsed.from.text);
-                    console.log("attachments:", parsed.attachments);
-                    var params = {
-                        Body: parsed.attachments[0].content, 
-                        Bucket: "aws-bbq-images-dev-ireland", 
-                        Key: s3Object.key+parsed.attachments[0].filename,
-                       };
-                    s3.putObject(params, function(err, data) {
-                        if (err) console.log(err, err.stack); // an error occurred
-                        else     console.log(data);           // successful response
-                        const client = new AWS.Rekognition();
-                    const detectParams = {
-                    Image: {
-                        S3Object: {
-                            Bucket: "aws-bbq-images-dev-ireland", 
-                            Name: s3Object.key+parsed.attachments[0].filename,
-                        },
-                    },
-                    MaxLabels: 10
-                    }
-                    client.detectLabels(detectParams, function(err, response) {
-                    if (err) {
-                        console.log(err, err.stack); // if an error occurred
-                    } else {
-                        response.Labels.forEach(label => {
-                        console.log(`Label:      ${label.Name}`)
-                        console.log(`Confidence: ${label.Confidence}`)
-                        console.log("Instances:")
-                        label.Instances.forEach(instance => {
-                            let box = instance.BoundingBox
-                            console.log("  Bounding box:")
-                            console.log(`    Top:        ${box.Top}`)
-                            console.log(`    Left:       ${box.Left}`)
-                            console.log(`    Width:      ${box.Width}`)
-                            console.log(`    Height:     ${box.Height}`)
-                            console.log(`  Confidence: ${instance.Confidence}`)
-                        })
-                        console.log("Parents:")
-                        label.Parents.forEach(parent => {
-                            console.log(`  ${parent.Name}`)
-                        })
-                        console.log("------------")
-                        console.log("")
-                        }) // for response.labels
-                    } // if
-                    });
-                        
-                        callback(null, null);
-                    });
-                                        
-                    
-                }
+    const data = await s3.getObject(req).promise();
+
+    console.log("Raw email:\n" + data.Body);
+
+    // Custom email processing goes here
+    const parsed = await simpleParser(data.Body);
+
+    console.log("headers:", parsed.headers);
+    console.log("date:", parsed.date);
+    console.log("subject:", parsed.subject);
+    console.log("body:", parsed.text);
+    console.log("from:", parsed.from.text);
+    console.log("attachments:", parsed.attachments);
+    var params = {
+        Body: parsed.attachments[0].content, 
+        Bucket: "aws-bbq-images-dev-ireland", 
+        Key: s3Object.key+parsed.attachments[0].filename,
+        };
+    const returndata = await s3.putObject(params).promise();
+        
+    const client = new AWS.Rekognition();
+    const detectParams = {
+    Image: {
+        S3Object: {
+            Bucket: "aws-bbq-images-dev-ireland", 
+            Name: s3Object.key+parsed.attachments[0].filename,
+        },
+    },
+    MaxLabels: 1000
+    }
+    const detections = await client.detectLabels(detectParams).promise();
+    
+    detections.Labels.forEach(label => {
+        console.log(`Label:      ${label.Name}`)
+        console.log(`Confidence: ${label.Confidence}`)
+        console.log("Instances:")
+        label.Instances.forEach(instance => {
+            console.log(`  Confidence: ${instance.Confidence}`)
+        })
+        console.log("Parents:")
+        label.Parents.forEach(parent => {
+            console.log(`  ${parent.Name}`)
+        })
+        console.log("------------")
+        console.log("")
+    
+    }) // for response.labels
+
+    
+    // Word list generated by https://relatedwords.io/api/relatedTerms?term=meat
+    const WordMatches = require('./bbq-words');
+    const score = detections.Labels.map(w=> {
+
+        let matchesFound = WordMatches.words.some(bbqWord=>{
+            let bbq = bbqWord.term.toLowerCase();
+            let detected = w.Name.toLowerCase();
+            return bbq.includes(detected) || detected.includes(bbq);
+        });
+        matchesFound = matchesFound || w.Parents.some(parentword=>{
+            WordMatches.words.some(bbqWord=>{
+                let bbq = bbqWord.term.toLowerCase();
+                let detected = parentword.Name.toLowerCase();
+                return bbq.includes(detected) || detected.includes(bbq);
             });
+        });
+        if (matchesFound){
+            console.log(`Word match: ${w.Name}`)
+            return w.Instances ? w.Instances.length:0;
+        } else {
+            return 0;
         }
-    });
-};
+    }).reduce((a,b)=>a+b);
+    console.log(`Score: ${score}`)
+    var params = {
+        TableName:"images",
+        Item: {
+            id : {S: s3Object.key}, 
+            email : {S:  parsed.from.text},
+            image_location : {S:s3Object.key+parsed.attachments[0].filename},
+            score : {N:score.toString()},
+            // data : {M:JSON.stringify(detections)}
+        }
+    };
+    console.log("Storing:", data);
+    
+    const dbputresponse = await ddb.putItem(params).promise();
+    console.log("Item entered successfully");
+
+    
+    callback(null, null);
+}
