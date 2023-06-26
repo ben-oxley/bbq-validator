@@ -27,7 +27,7 @@ resource "aws_lambda_function" "lambda_hello_world" {
   role          = aws_iam_role.lambda_hello_world_role.arn
   handler       = "mail-parse.handler"
   runtime       = "nodejs16.x"
-  timeout = 300
+  timeout       = 300
 
   source_code_hash = data.archive_file.main.output_base64sha256
 }
@@ -74,25 +74,33 @@ EOF
           "Resource" : "*"
         },
         {
-          "Sid": "LambdaDynamo",
-          "Effect": "Allow",
-          "Action": [
+          "Sid" : "LambdaDynamo",
+          "Effect" : "Allow",
+          "Action" : [
             "dynamodb:PutItem"
           ],
           "Resource" : "*"
         },
         {
-            "Effect": "Allow",
-            "Action": [
-                "rekognition:*"
-            ],
-            "Resource": "*"
+          "Sid" : "LambdaSendEmail",
+          "Effect" : "Allow",
+          "Action" : [
+            "ses:SendEmail"
+          ],
+          "Resource" : "*"
         },
         {
-            "Sid": "PassRole",
-            "Effect": "Allow",
-            "Action": "iam:PassRole",
-            "Resource": "*"
+          "Effect" : "Allow",
+          "Action" : [
+            "rekognition:*"
+          ],
+          "Resource" : "*"
+        },
+        {
+          "Sid" : "PassRole",
+          "Effect" : "Allow",
+          "Action" : "iam:PassRole",
+          "Resource" : "*"
         }
       ]
     })
@@ -100,27 +108,27 @@ EOF
 }
 
 resource "aws_s3_bucket_notification" "my-trigger" {
-    bucket = aws_s3_bucket.inbox_s3.bucket
+  bucket = aws_s3_bucket.inbox_s3.bucket
 
-    lambda_function {
-        lambda_function_arn = "${aws_lambda_function.lambda_hello_world.arn}"
-        events              = ["s3:ObjectCreated:*"]
-    }
+  lambda_function {
+    lambda_function_arn = aws_lambda_function.lambda_hello_world.arn
+    events              = ["s3:ObjectCreated:*"]
+  }
 }
 
 resource "aws_lambda_permission" "test" {
   statement_id  = "AllowS3Invoke"
   action        = "lambda:InvokeFunction"
-  function_name = "${aws_lambda_function.lambda_hello_world.arn}"
-  principal = "s3.amazonaws.com"
-  source_arn = aws_s3_bucket.inbox_s3.arn
+  function_name = aws_lambda_function.lambda_hello_world.arn
+  principal     = "s3.amazonaws.com"
+  source_arn    = aws_s3_bucket.inbox_s3.arn
 }
 
 
 
 resource "aws_s3_bucket" "images_s3" {
   bucket = "aws-bbq-images-dev-ireland"
- 
+
   tags = {
     Name        = "AWS bbq images"
     Environment = "dev"

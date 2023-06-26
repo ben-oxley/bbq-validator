@@ -82,7 +82,7 @@ module.exports.handler = async function (event, context, callback) {
         });
         if (matchesFound){
             console.log(`Word match: ${w.Name}`)
-            return (w.Instances ? Math.min(w.Instances.length,1):1)+parentMatchTotal;
+            return (w.Instances ? Math.max(w.Instances.length,1):1)+parentMatchTotal;
         } else {
             return 0;
         }
@@ -102,6 +102,35 @@ module.exports.handler = async function (event, context, callback) {
     
     const dbputresponse = await ddb.putItem(params).promise();
     console.log("Item entered successfully");
+
+    // Create sendEmail params 
+    var emailParams = {
+    Destination: { /* required */
+      ToAddresses: [
+        parsed.from.value[0].address
+      ]
+    },
+    Message: { /* required */
+      Body: { /* required */
+        Text: {
+         Charset: "UTF-8",
+         Data: score>0?`Nice work, I think you had a decent BBQ. I rate it a ${score}`:"Your pathetic attempt at a BBQ does not register on my BBQ-o-meter. "
+        }
+       },
+       Subject: {
+        Charset: 'UTF-8',
+        Data: 'Your BBQ'
+       }
+      },
+    Source: 'ratemy@bbq.benoxley.com', /* required */
+    ReplyToAddresses: [
+       'ratemy@bbq.benoxley.com',
+      /* more items */
+    ],
+  };
+  
+  // Create the promise and SES service object
+  await new AWS.SES({apiVersion: '2010-12-01'}).sendEmail(emailParams).promise();
 
     
     callback(null, null);
