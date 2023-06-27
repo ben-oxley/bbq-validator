@@ -92,7 +92,7 @@ module.exports.handler = async function (event, context, callback) {
         TableName:"images",
         Item: {
             id : {S: s3Object.key}, 
-            email : {S:  parsed.from.text},
+            email : {S:  parsed.from.value[0].address},
             image_location : {S:s3Object.key+parsed.attachments[0].filename},
             score : {N:score.toString()},
             // data : {M:JSON.stringify(detections)}

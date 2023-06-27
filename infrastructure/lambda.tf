@@ -7,6 +7,15 @@ data "archive_file" "main" {
   depends_on = [null_resource.main]
 }
 
+# Archive lambda function
+data "archive_file" "leaderboard" {
+  type        = "zip"
+  source_dir  = "../src/leaderboard"
+  output_path = "${path.module}/.terraform/archive_files/leaderboard.zip"
+
+  depends_on = [null_resource.leaderboard]
+}
+
 # Provisioner to install dependencies in lambda package before upload it.
 resource "null_resource" "main" {
 
@@ -21,6 +30,20 @@ resource "null_resource" "main" {
   }
 }
 
+# Provisioner to install dependencies in lambda package before upload it.
+resource "null_resource" "leaderboard" {
+
+  triggers = {
+    updated_at = timestamp()
+  }
+
+  provisioner "local-exec" {
+    command = "npm i"
+
+    working_dir = "../src/leaderboard"
+  }
+}
+
 resource "aws_lambda_function" "lambda_hello_world" {
   filename      = "${path.module}/.terraform/archive_files/function.zip"
   function_name = "lambda-mail-parse"
@@ -30,6 +53,22 @@ resource "aws_lambda_function" "lambda_hello_world" {
   timeout       = 300
 
   source_code_hash = data.archive_file.main.output_base64sha256
+}
+
+resource "aws_lambda_function" "lambda_leaderboard" {
+  filename      = "${path.module}/.terraform/archive_files/leaderboard.zip"
+  function_name = "lambda-_leaderboard"
+  role          = aws_iam_role.lambda_leaderboard_role.arn
+  handler       = "leaderboard.handler"
+  runtime       = "nodejs16.x"
+  timeout       = 300
+
+  source_code_hash = data.archive_file.leaderboard.output_base64sha256
+}
+
+resource "aws_lambda_function_url" "test_latest" {
+  function_name      = aws_lambda_function.lambda_leaderboard.function_name
+  authorization_type = "NONE"
 }
 
 resource "aws_iam_role" "lambda_hello_world_role" {
@@ -100,6 +139,55 @@ EOF
           "Sid" : "PassRole",
           "Effect" : "Allow",
           "Action" : "iam:PassRole",
+          "Resource" : "*"
+        }
+      ]
+    })
+  }
+}
+
+
+resource "aws_iam_role" "lambda_leaderboard_role" {
+  name               = "lambda_leaderboard_role"
+  assume_role_policy = <<EOF
+{
+  "Version": "2012-10-17",
+  "Statement": [
+    {
+      "Action": "sts:AssumeRole",
+      "Principal": {
+        "Service": "lambda.amazonaws.com"
+      },
+      "Effect": "Allow",
+      "Sid": ""
+    }
+  ]
+}
+EOF
+  inline_policy {
+    name = "lamda-mail-parse-policy"
+    policy = jsonencode({
+      "Version" : "2012-10-17",
+      "Statement" : [
+        {
+          "Sid" : "LambdaMailParse",
+          "Effect" : "Allow",
+          "Action" : [
+            "logs:CreateLogGroup",
+            "logs:CreateLogStream",
+            "logs:PutLogEvents",
+          ],
+          "Resource" : "*"
+        },
+        {
+          "Sid" : "LambdaDynamo",
+          "Effect" : "Allow",
+          "Action" : [
+            "dynamodb:BatchGetItem",
+            "dynamodb:GetItem",
+            "dynamodb:Query",
+            "dynamodb:Scan"
+          ],
           "Resource" : "*"
         }
       ]
