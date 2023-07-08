@@ -2,7 +2,7 @@
 	import { createAppTheme } from '@arwes/theme';
 
 	let name = 'Svelte';
-
+    let scores = [];
 	const t = createAppTheme({
 		settings: {
 			hues: {
@@ -23,7 +23,7 @@
       .then(response => response.json())
       .then(data => {
             console.log(data);
-     
+            scores = Object.entries(data).sort(([,a],[,b]) => b.score_sum-a.score_sum);
       }).catch(error => {
         console.log(error);
         return [];
@@ -34,22 +34,20 @@
 
 
 <main>
-    <h1>Hello {name.toUpperCase()}!</h1>
-	<h1>Arwes Framework</h1>
+	<h1>Leaderboard</h1>
 	<hr />
-	<p>
-		Arwes is a web framework to build user interfaces based on futuristic science fiction designs,
-		animations, and sound effects. The concepts behind are opinionated with influences from
-		Cyberprep and Synthwave, and productions like Star Citizen, Halo, and TRON: Legacy. It tries to
-		inspire advanced science and technology.
+    {#each scores as score}
+    <p>
+		{score[0]}: Total score {score[1].score_sum} Total BBQs {score[1].count}
 	</p>
+{/each}
+
 </main>
 
 <style>
     main{
         border: 1px solid rgba(19, 164, 236, 0.298);
         padding: 1rem 2rem;
-        max-width: 400px;
         border-radius: 1rem;
         background: linear-gradient(to right bottom, rgb(9, 17, 22), rgb(17, 35, 44));
     }
