@@ -15,3 +15,9 @@ https://docs.aws.amazon.com/ses/latest/dg/receiving-email-setting-up.html
 
 ;; MX Records
 bbq.benoxley.com.	1	IN	MX	10 inbound-smtp.eu-west-2.amazonaws.com.
+
+## Leaderboard
+
+Leaderboard is at:
+
+[http://bbq.benoxley.com.s3-website-eu-west-1.amazonaws.com/](http://bbq.benoxley.com.s3-website-eu-west-1.amazonaws.com/)
